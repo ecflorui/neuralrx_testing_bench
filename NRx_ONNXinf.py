@@ -2,7 +2,7 @@ import onnxruntime as ort
 import numpy as np
 
 # Load ONNX
-sess = ort.InferenceSession("neural_receiver.onnx")
+sess = ort.InferenceSession("receiver_model.onnx")
 
 # Print inputs for clarity
 for i in sess.get_inputs():
@@ -10,14 +10,14 @@ for i in sess.get_inputs():
 
 # Create dummy inputs
 batch_size = 1
-y_realimag_dummy = np.random.rand(batch_size, 14, 76, 4).astype(np.float32)
-no_dummy = np.array([1.0], dtype=np.float32)  # same batch size
+y_dummy = np.random.rand(batch_size, 14, 96, 2).astype(np.float32)  # Y_real_imag
+hr_dummy = np.random.rand(batch_size, 14, 96, 2).astype(np.float32) # Hr_real_imag
 
-# Run inference with **both inputs**
+# Run inference with both inputs
 outputs = sess.run(None, {
-    'y_realimag': y_realimag_dummy,
-    'no': no_dummy
+    'Y_real_imag': y_dummy,
+    'Hr_real_imag': hr_dummy
 })
 
 # Inspect output
-print("Output shape:", outputs[0].shape)
+print("Output shape:", outputs[0].shape)  # should be [1, 14, 96, 2]

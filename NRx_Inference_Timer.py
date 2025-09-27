@@ -10,7 +10,7 @@ def load_engine(path):
     with open(path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
         return runtime.deserialize_cuda_engine(f.read())
 
-engine = load_engine("model_neuralrx.plan")
+engine = load_engine("reciever_model.trt")
 context = engine.create_execution_context()
 
 # Input shapes (from ONNX inspection)
