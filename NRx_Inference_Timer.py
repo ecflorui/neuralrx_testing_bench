@@ -5,52 +5,61 @@ import numpy as np
 
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
-# Load engine
-def load_engine(path):
-    with open(path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
+# --- Load TensorRT engine ---
+def load_engine(trt_file_path):
+    with open(trt_file_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
         return runtime.deserialize_cuda_engine(f.read())
 
-engine = load_engine("reciever_model.trt")
+engine = load_engine("model_neuralrx.trt")
 context = engine.create_execution_context()
 
-# Input shapes (from ONNX inspection)
-batch_size = 1
-y_shape = (batch_size, 14, 76, 4)  # y_realimag
-no_shape = (batch_size,)            # no
+# --- Allocate device memory for inputs and outputs ---
+bindings = []
+input_bindings = []
+output_bindings = []
 
-# Output shape
-out_shape = tuple(context.get_binding_shape(2-1))  # only 1 output, index 2-1=1
+for i in range(engine.num_bindings):
+    shape = tuple(context.get_binding_shape(i))
+    size = np.prod(shape) * np.float32().nbytes
+    mem = cuda.mem_alloc(size)
+    bindings.append(mem)
+    if engine.binding_is_input(i):
+        input_bindings.append(i)
+    else:
+        output_bindings.append(i)
 
-# Allocate device memory
-d_y = cuda.mem_alloc(np.prod(y_shape) * np.dtype(np.float32).itemsize)
-d_no = cuda.mem_alloc(np.prod(no_shape) * np.dtype(np.float32).itemsize)
-d_out = cuda.mem_alloc(np.prod(out_shape) * np.dtype(np.float32).itemsize)
+# --- Create dummy inputs (random floats) based on engine input shapes ---
+for i in input_bindings:
+    shape = tuple(context.get_binding_shape(i))
+    dummy = np.random.rand(*shape).astype(np.float32)
+    cuda.memcpy_htod(bindings[i], dummy)
 
-bindings = [int(d_y), int(d_no), int(d_out)]  # inputs then output
-stream = cuda.Stream()
-
-# Create dummy inputs
-y_dummy = np.random.rand(*y_shape).astype(np.float32)
-no_dummy = np.ones(no_shape, dtype=np.float32)  # can be 1.0
-
-# Copy inputs to device
-cuda.memcpy_htod_async(d_y, y_dummy, stream)
-cuda.memcpy_htod_async(d_no, no_dummy, stream)
-
-# Warmup
+# --- Warmup passes (to initialize GPU and optimize) ---
 for _ in range(10):
     context.execute_v2(bindings)
-    stream.synchronize()
 
-# Timed runs
-start, end = cuda.Event(), cuda.Event()
+# --- Timed inference ---
+stream = cuda.Stream()
+start_evt, end_evt = cuda.Event(), cuda.Event()
+num_runs = 100
 times = []
-for _ in range(100):
-    start.record(stream)
-    context.execute_v2(bindings)
-    end.record(stream)
-    end.synchronize()
-    times.append(start.time_till(end))
 
-print(f"Average latency: {np.mean(times):.3f} ms")
-print(f"Std dev: {np.std(times):.3f} ms")
+for _ in range(num_runs):
+    start_evt.record(stream)
+    context.execute_v2(bindings)
+    end_evt.record(stream)
+    end_evt.synchronize()
+    times.append(start_evt.time_till(end_evt))
+
+print(f"Inference average latency: {np.mean(times):.3f} ms")
+print(f"Inference std deviation: {np.std(times):.3f} ms")
+
+# --- Optional: retrieve output ---
+outputs = []
+for i in output_bindings:
+    shape = tuple(context.get_binding_shape(i))
+    out_host = np.empty(shape, dtype=np.float32)
+    cuda.memcpy_dtoh(out_host, bindings[i])
+    outputs.append(out_host)
+
+print("Output shapes:", [o.shape for o in outputs])
