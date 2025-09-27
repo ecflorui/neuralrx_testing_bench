@@ -5,7 +5,7 @@ Timing inference is executed on NRx_Inference_Timer.py
 
 Code Breakdown
 
-(1) **Imports**: Keep these the same
+# (1) **Imports**: Keep these the same
 
 import tensorrt as trt
 import pycuda.driver as cuda
@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
 
 
-(2) **Loading Engine**: change the name of the file used in the load_engine function. Make sure you use correct version. I ran this command to make sure Orin's TensorRT version matched with the system:
+# (2) **Loading Engine**: change the name of the file used in the load_engine function. Make sure you use correct version. I ran this command to make sure Orin's TensorRT version matched with the system:
 
 /usr/src/tensorrt/bin/trtexec \
   --onnx=receiver_model.onnx \
@@ -25,7 +25,7 @@ TRT_LOGGER = trt.Logger(trt.Logger.WARNING)
   --workspace=4096
 
 
-# --- Load TensorRT engine Python Code---
+--- Load TensorRT engine Python Code---
 def load_engine(trt_file_path):
     with open(trt_file_path, "rb") as f, trt.Runtime(TRT_LOGGER) as runtime:
         return runtime.deserialize_cuda_engine(f.read())
@@ -33,7 +33,7 @@ def load_engine(trt_file_path):
 engine = load_engine("receiver_model_orin.trt")
 context = engine.create_execution_context()
 
-(3) **# --- Allocate device memory for inputs and outputs ---** --> likely need to change these properties if attempting to use another trt file for inference testing
+# (3) ** --- Allocate device memory for inputs and outputs ---** --> likely need to change these properties if attempting to use another trt file for inference testing
 bindings = {}
 input_bindings = []
 output_bindings = []
@@ -49,25 +49,25 @@ for i in range(engine.num_io_tensors):
     else:
         output_bindings.append(name)
 
-(4) **Dummy testing + warmup**
+# (4) **Dummy testing + warmup**
 
-# --- Create dummy inputs ---
+ --- Create dummy inputs ---
 for name in input_bindings:
     shape = tuple(engine.get_tensor_shape(name))
     dummy = np.random.rand(*shape).astype(np.float32)
     cuda.memcpy_htod(bindings[name], dummy)
 
-# --- Build ordered list of device pointers ---
+ --- Build ordered list of device pointers ---
 binding_addrs = [int(bindings[engine.get_tensor_name(i)]) for i in range(engine.num_io_tensors)]
 
-# --- Warmup (discarded from stats) ---
+ --- Warmup (discarded from stats) ---
 for _ in range(20):
     context.execute_v2(binding_addrs)
 
 
-(5) **Timing** --> likely does not need to change
+# (5) **Timing** --> likely does not need to change
 
-# --- Timed inference ---
+ --- Timed inference ---
 stream = cuda.Stream()
 start_evt, end_evt = cuda.Event(), cuda.Event()
 num_runs = 100
@@ -80,7 +80,7 @@ for _ in range(num_runs):
     end_evt.synchronize()
     times.append(start_evt.time_till(end_evt))
 
-# --- Stats (discard warmup bias) ---
+ --- Stats (discard warmup bias) ---
 valid_times = times[20:]  # skip first 20 runs
 mean_lat = np.mean(valid_times)
 std_lat = np.std(valid_times)
