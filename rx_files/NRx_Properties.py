@@ -1,7 +1,7 @@
 import onnx
 
 # Load the ONNX model
-model = onnx.load("receiver_model.onnx")
+model = onnx.load("rx_files/receiver_model.onnx")
 
 # Check it's valid
 onnx.checker.check_model(model)

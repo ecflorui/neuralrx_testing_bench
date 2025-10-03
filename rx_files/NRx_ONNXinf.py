@@ -2,7 +2,7 @@ import onnxruntime as ort
 import numpy as np
 
 # Load ONNX
-sess = ort.InferenceSession("receiver_model.onnx")
+sess = ort.InferenceSession("rx_files/receiver_model.onnx")
 
 # Print inputs for clarity
 for i in sess.get_inputs():
